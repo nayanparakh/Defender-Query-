@@ -7,6 +7,4 @@ Youtube: ☁️-CloudX- ☁️ Let's do better things together 😉
 
 https://youtu.be/8dqMMH6LRME
 
-
-Example:
 ![](image.jpg)
