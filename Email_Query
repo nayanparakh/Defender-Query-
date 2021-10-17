@@ -1,0 +1,32 @@
+Sample 1 
+// Find the first appearance of files sent by a malicious sender in your organization
+let MaliciousSender= "mtpdemos@abc.com";
+EmailAttachmentInfo
+| where Timestamp > ago(30d)
+| where SenderFromAddress=~ MaliciousSender
+| join(
+DeviceFileEvents
+| where Timestamp> ago(30d)
+) on SHA256
+| summarize FirstAppearance= min(Timestamp) by DeviceName, SHA256, FileName
+
+
+Sample 2
+//Use this query to search for instances of malicious senders associated with multiple phishing campaigns
+let EmailAddresses = pack_array
+('zreffertalt.com.com','zreffesral.com.com');
+EmailEvents
+| where SenderMailFromDomain in (EmailAddresses)
+| extend RecipientDomain = extract("[^@]+$", 0, RecipientEmailAddress)
+| where SenderFromDomain == RecipientDomain
+| join EmailUrlInfo on $left.NetworkMessageId == $right.NetworkMessageId
+
+
+Sample 3 
+//Mention the device name and check for all remoteurl for that device 
+DeviceEvents
+|where  DeviceName == "hostname enter here"
+| where ActionType == "BrowserLaunchedToOpenUrl" and isnotempty(RemoteUrl)
+| where InitiatingProcessFileName =~ "outlook.exe" 
+or InitiatingProcessFileName =~ "runtimebroker.exe"
+| project Timestamp, DeviceId, DeviceName, RemoteUrl, InitiatingProcessFileName, ParsedUrl=parse_url(RemoteUrl)
