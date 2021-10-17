@@ -23,7 +23,7 @@ EmailEvents
 
 
 Sample 3 
-//Mention the device name and check for all remoteurl for that device 
+//Mention the device name and check for all remoteurl connection for that device via outlook
 DeviceEvents
 |where  DeviceName == "hostname enter here"
 | where ActionType == "BrowserLaunchedToOpenUrl" and isnotempty(RemoteUrl)
