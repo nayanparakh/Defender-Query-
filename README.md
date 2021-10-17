@@ -9,4 +9,4 @@ https://youtu.be/8dqMMH6LRME
 
 
 Example:
-![](https://youtu.be/8dqMMH6LRME.mp4)
+![](image.jpg)
