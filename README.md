@@ -3,7 +3,7 @@
 This repo is private request you to don't change any File. kindly commit below for any changes. 
 
 Follow Me:
-.Follow us on Youtube: ☁️-CloudX- ☁️ Let's do better things together 😉
+Youtube: ☁️-CloudX- ☁️ Let's do better things together 😉
 https://lnkd.in/eXZYq4A
 
 GITHUB:https://lnkd.in/eiCPUex
