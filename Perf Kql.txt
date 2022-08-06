@@ -1,0 +1,111 @@
+Perf
+
+//correlate Memory and CPU custom hours
+let StartTime = datetime(2017-11-12 00:30);
+let EndTime = datetime(2017-11-22 00:30);
+Perf
+| where CounterName == “% Processor Time”
+| where TimeGenerated > StartTime and TimeGenerated < EndTime
+| project TimeGenerated, Computer, cpu=CounterValue //project | Select the columns to include, rename or drop, and insert new computed columns
+| join kind= inner ( //join | Merge the rows of two tables to form a new table by matching values of the specified column(s) from each table
+Perf
+| where CounterName == “% Committed Bytes In Use”
+| where TimeGenerated > StartTime and TimeGenerated < EndTime
+| project TimeGenerated , Computer, mem=CounterValue
+) on TimeGenerated, Computer
+| summarize avgCpu=avg(cpu), maxMem=max(mem) by Computer, TimeGenerated bin=1hr //summarize | Produces a table that aggregates the content of the input table
+| render timechart
+ 
+
+//correlate Memory and CPU the past hour
+let StartTime = now(-1h);
+let EndTime = now();
+Perf
+| where CounterName == “% Processor Time”
+| where TimeGenerated > StartTime and TimeGenerated < EndTime
+| project TimeGenerated, Computer, cpu=CounterValue //project | Select the columns to include, rename or drop, and insert new computed columns
+| join kind= inner ( //join | Merge the rows of two tables to form a new table by matching values of the specified column(s) from each table
+Perf
+| where CounterName == “% Committed Bytes In Use”
+| where TimeGenerated > StartTime and TimeGenerated < EndTime
+| project TimeGenerated , Computer, mem=CounterValue
+) on TimeGenerated, Computer
+| summarize avgCpu=avg(cpu), maxMem=max(mem) by Computer, TimeGenerated bin=1hr //summarize | Produces a table that aggregates the content of the input table
+| render timechart
+ 
+
+//Performance of computers in a group
+let group1 = Heartbeat | where Computer contains “1598” | summarize by Computer, group=“group1”;
+let group2 = Heartbeat | where Computer contains “1599”| summarize by Computer, group=“group2”;
+let combinedGroup= union group1, group2;
+let projectedComputers = combinedGroup | summarize makeset(Computer);
+Perf
+| where ObjectName == “Processor”
+| where CounterName == “% Processor Time”
+| where Computer in (projectedComputers)
+| summarize avg(CounterValue) by bin(TimeGenerated, 15m), Computer
+| render timechart
+ 
+
+//CPU Performance of computers
+Perf
+| where CounterName == “% Processor Time” and ObjectName == “Processor” and InstanceName == “_Total”
+| summarize AVGCPU = avg(CounterValue) by bin(TimeGenerated, 1h), Computer
+| sort by TimeGenerated desc
+| render timechart
+// Oql: Type:Perf CounterName=”% Processor Time” ObjectName=Processor InstanceName=_Total | measure avg(CounterValue) as AVGCPU by Computer | display linechart // WorkspaceId: {b438b4f6-912a-46d5-9cb1-b44069212abc} // Version: 0.1.115
+ 
+
+//Moving Average Performance over 15 minutes
+let endTime=now();
+let timerange =1d;
+let startTime=now() – timerange;
+let mInterval=4;
+let mAvgParm = repeat(1, mInterval);
+Perf
+| where ObjectName == “Processor”
+| where CounterName == “% Processor Time”
+| make-series avgCpu=avg(CounterValue) default=0 on TimeGenerated in range(startTime, endTime, 15m) by Computer
+| extend moving_avgCpu = series_fir(avgCpu, mAvgParm)
+| render timechart
+ 
+
+// disk space
+let PercentSpace = 50; //enter the threshold for the disk space percentage
+Perf
+| where ObjectName == “LogicalDisk” and CounterName == “% Free Space”
+| summarize FreeSpace = min(CounterValue) by Computer, InstanceName
+// | where InstanceName == “C:” or InstanceName == “D:” or InstanceName == “E:”
+| where InstanceName contains “:”
+// look for the colon in the drive letter
+| where FreeSpace < PercentSpace
+// set to < in normal circumstances
+| sort by FreeSpace asc
+| render barchart kind = unstacked
+ 
+
+//Comparing performance in groups of computers
+Perf
+| where ObjectName == “Processor”
+| where CounterName == “% Processor Time”
+| extend group = case(Computer contains “1598”, “admgrup”, Computer contains “1599”, “bsgroup”, “other”)
+| summarize avg(CounterValue) by bin(TimeGenerated, 1h) , group
+| render timechart
+ 
+
+Perf
+| where ObjectName==“Processor” and CounterName==“% Processor Time”
+| summarize avg(CounterValue) by Computer | where avg_CounterValue > 10
+ 
+
+Perf
+| where ObjectName==“Memory” and CounterName==“% Committed Bytes In Use”
+| summarize avg(CounterValue) by Computer | where avg_CounterValue > 70
+ 
+
+Perf
+| where ObjectName == “Processor” and CounterName == “% Processor Time” and InstanceName == “_Total” and Computer in ((Heartbeat
+| where OSType == “Windows”
+| distinct Computer))
+| summarize AggregatedValue = avg(CounterValue) by bin(TimeGenerated, 1h), Computer
+| render timechart
