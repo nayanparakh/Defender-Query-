@@ -1,0 +1,30 @@
+let timeframe = 1d;
+OfficeActivity
+| where TimeGenerated >= ago(timeframe)
+| where OfficeWorkload == "Exchange"
+| where Operation in~ ("New-TransportRule", "Set-TransportRule")
+| extend p = parse_json(Parameters)
+| extend RuleName = case(
+  Operation =~ "Set-TransportRule", tostring(OfficeObjectId),
+  Operation =~ "New-TransportRule", tostring(p[1].Value),
+  "Unknown"
+  ) 
+| mvexpand p
+| where (p.Name =~ "BlindCopyTo" or p.Name =~ "RedirectMessageTo") and isnotempty(p.Value)
+| extend RedirectTo = p.Value
+| extend ClientIPOnly = case( 
+  ClientIP has "." and ClientIP has ":", tostring(split(ClientIP,":")[0]), 
+  ClientIP has "." and ClientIP has "-", tostring(split(ClientIP,"-")[0]), 
+  ClientIP has "[", tostring(trim_start(@'[[]',tostring(split(ClientIP,"]")[0]))),
+  ClientIP
+  )  
+| extend Port = case(
+  ClientIP has "." and ClientIP has ":", (split(ClientIP,":")[1]),
+  ClientIP has "." and ClientIP has "-", (split(ClientIP,"-")[1]),
+  ClientIP has "[" and ClientIP has ":", tostring(split(ClientIP,"]:")[1]),
+  ClientIP has "[" and ClientIP has "-", tostring(split(ClientIP,"]-")[1]),
+  ClientIP
+  )
+| extend ClientIP = ClientIPOnly
+| project TimeGenerated, RedirectTo, ClientIP, Port, UserId, Operation, RuleName
+| extend timestamp = TimeGenerated, AccountCustomEntity = UserId, IPCustomEntity = ClientIP
