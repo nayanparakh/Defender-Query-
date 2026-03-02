@@ -1,0 +1,28 @@
+#Alerts Triggered by Custom Detections
+AlertInfo
+| where DetectionSource == @"Custom detection"
+//| where DetectionSource == "Custom Detection"
+| project TimeGenerated, DetectionSource, Title,Category,Severity,ServiceSource
+| sort by TimeGenerated desc
+
+#Identify When a Custom Detection Did Run or Writes 
+//let lookback = 60d;
+CloudAppEvents
+| where ActionType contains "Custom"
+| where ActionType != @"CustomTableWrite"
+|  where ActionType != @"SiteAccessWithCustomScripts"
+| where parse_json(RawEventData)["AlertTitle"] == 'Password spray detected from {IPAddress} targeting multiple accounts'
+| where parse_json(RawEventData)["RuleName"] == 'LAB Password Spray'
+| top 1 by TimeGenerated desc
+//| project TimeGenerated, Status = AdditionalFields.RunStatus
+//| summarize LastRun=max(TimeGenerated) by RuleName=tostring(AdditionalFields.RuleName)
+//| where LastRun < ago(lookback)
+
+#Identify Rule Execution Failures
+SentinelHealth
+//| where OperationName == @"Scheduled analytics rule run"
+//| where Status == @"PartialSuccess"
+| where Status != @"Success"
+//| where Status == "Failed"
+| project TimeGenerated
+| sort by TimeGenerated desc
