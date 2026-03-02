@@ -1,11 +1,11 @@
-#Alerts Triggered by Custom Detections
+##Alerts Triggered by Custom Detections
 AlertInfo
 | where DetectionSource == @"Custom detection"
 //| where DetectionSource == "Custom Detection"
 | project TimeGenerated, DetectionSource, Title,Category,Severity,ServiceSource
 | sort by TimeGenerated desc
 
-#Identify When a Custom Detection Did Run or Writes 
+##Identify When a Custom Detection Did Run or Writes 
 //let lookback = 60d;
 CloudAppEvents
 | where ActionType contains "Custom"
@@ -18,7 +18,7 @@ CloudAppEvents
 //| summarize LastRun=max(TimeGenerated) by RuleName=tostring(AdditionalFields.RuleName)
 //| where LastRun < ago(lookback)
 
-#Identify Rule Execution Failures
+##Identify Rule Execution Failures
 SentinelHealth
 //| where OperationName == @"Scheduled analytics rule run"
 //| where Status == @"PartialSuccess"
@@ -26,3 +26,17 @@ SentinelHealth
 //| where Status == "Failed"
 | project TimeGenerated
 | sort by TimeGenerated desc
+
+##Determine Last Run Time for a Specific Rule
+CloudAppEvents
+| where ActionType == "CustomDetectionRun"
+| where AdditionalFields.RuleName == "<Your Rule Name>"
+| top 1 by TimeGenerated desc
+| project TimeGenerated, Status = AdditionalFields.RunStatus
+
+##Find Rules with No Activity in X Hours
+let lookback = 6h;
+CloudAppEvents
+| where ActionType == "CustomDetectionRun"
+| summarize LastRun=max(TimeGenerated) by RuleName=tostring(AdditionalFields.RuleName)
+| where LastRun < ago(lookback)
