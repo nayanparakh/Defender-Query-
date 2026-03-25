@@ -1,0 +1,34 @@
+let lookback = 24h;
+DeviceInfo
+| where OnboardingStatus == "Onboarded"
+| project DeviceId, DeviceName, SensorHealthState
+| join kind=leftouter (
+    DeviceProcessEvents
+    | where Timestamp > ago(lookback)
+    | summarize ProcessEvents = count() by DeviceId
+) on DeviceId
+| join kind=leftouter (
+    DeviceNetworkEvents
+    | where Timestamp > ago(lookback)
+    | summarize NetworkEvents = count() by DeviceId
+) on DeviceId
+| join kind=leftouter (
+    DeviceEvents
+    | where Timestamp > ago(lookback)
+    | summarize SystemEvents = count() by DeviceId
+) on DeviceId
+| extend
+    ProcessEvents = coalesce(ProcessEvents, 0),
+    NetworkEvents = coalesce(NetworkEvents, 0),
+    SystemEvents = coalesce(SystemEvents, 0)
+| where
+    ProcessEvents == 0
+    or NetworkEvents == 0
+    or SystemEvents == 0
+| project
+    DeviceName,
+    SensorHealthState,
+    ProcessEvents,
+    NetworkEvents,
+    SystemEvents
+| order by SensorHealthState asc
