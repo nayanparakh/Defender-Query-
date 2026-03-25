@@ -1,0 +1,9 @@
+DeviceInfo
+| where OnboardingStatus == "Onboarded"
+| where SensorHealthState != "Active"
+| project
+    Timestamp,
+    DeviceName,
+    DeviceId,
+    SensorHealthState,
+    OnboardingStatus
