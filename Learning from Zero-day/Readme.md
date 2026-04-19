@@ -1,5 +1,5 @@
 # 🛡️ BlueHammer, RedSun & UnDefend  
-### Advanced Exploitation of Microsoft Defender (2026)
+### Advanced Exploitation of Microsoft Defender (2025)
 
 ![Status](https://img.shields.io/badge/status-research-blue)
 ![Threat Level](https://img.shields.io/badge/threat-critical-red)
@@ -62,3 +62,191 @@ Extract **NTLM hashes** from protected registry hives using Defender behavior.
 3. Create Volume Shadow Copy  
 4. Freeze Defender via Cloud Filter API  
 5. Extract:
+```
+
+SAM
+SYSTEM
+SECURITY
+
+```
+6. Reconstruct boot key & decrypt hashes  
+7. Escalate to SYSTEM  
+
+### 💥 Impact
+- Full credential compromise
+- Persistent privilege escalation
+- Stealthy execution via legitimate processes
+
+---
+
+## 🔴 RedSun
+
+### 🎯 Objective
+Achieve **privileged file write → SYSTEM execution**
+
+### ⚙️ Root Cause
+Missing **reparse point validation** in:
+```
+
+MpSvc.dll
+
+```
+
+### 🔗 Attack Flow
+1. Drop EICAR payload  
+2. Trigger Defender remediation  
+3. Lock file using OPLOCK  
+4. Replace path with junction → `C:\Windows\System32`  
+5. Defender writes payload as SYSTEM  
+6. Execute via COM:
+```
+
+CLSID {50d185b9-fff3-4656-92c7-e4018da4361d}
+
+```
+
+### 💥 Impact
+- Direct SYSTEM shell
+- No exploit needed beyond logic flaw
+- Fully trusted write operation
+
+---
+
+## 🟡 UnDefend
+
+### 🎯 Objective
+Disable Defender updates **without privilege escalation**
+
+### ⚙️ Techniques Used
+
+#### 1. Backup Lock
+- Locks:
+```
+
+mpavbase.vdm
+mpavbase.lkg
+
+```
+
+#### 2. Update Race Condition
+- Blocks Defender read access during update
+
+#### 3. Service Restart Hook
+- Monitors `WinDefend` restart
+- Locks definitions immediately
+
+#### 4. MRT Lockout
+- Blocks:
+```
+
+C:\Windows\System32\MRT
+
+```
+
+### 💥 Impact
+- Defender updates fail silently
+- No alerts triggered
+- Endpoint remains unprotected
+
+---
+
+## 🔗 Attack Chain Mapping
+
+```
+
+Initial Access (VPN compromise)
+↓
+Execution (EICAR trigger)
+↓
+Defense Evasion (UnDefend)
+↓
+Privilege Escalation (RedSun / BlueHammer)
+↓
+Credential Access (BlueHammer)
+↓
+Persistence (SYSTEM context)
+
+```
+
+---
+
+## 🧠 MITRE ATT&CK Mapping
+
+| Technique                  | ID        |
+|--------------------------|----------|
+| Privilege Escalation     | T1068    |
+| Credential Dumping       | T1003    |
+| Defense Evasion          | T1562    |
+| File/Directory Abuse     | T1106    |
+| Exploitation for Priv    | T1068    |
+
+---
+
+## 🔍 Detection Opportunities
+
+### 🛑 High-Fidelity Signals
+
+- Defender writing to:
+```
+
+C:\Windows\System32\
+
+```
+- Access to:
+```
+
+\Device\HarddiskVolumeShadowCopy*
+
+```
+- Suspicious Cloud Files API usage:
+- `CfRegisterSyncRoot`
+- `CfCreatePlaceholders`
+
+### 🧩 Behavioral Indicators
+
+- EICAR-triggered scan followed by SYSTEM activity  
+- Named pipe communication:
+```
+
+\.\pipe\REDSUN
+
+```
+- OPLOCK usage patterns  
+- Unexpected COM activation chains  
+
+---
+
+## 📎 References
+
+- Huntress Labs Research  
+- Microsoft Defender Internals  
+- Windows Cloud Files API Documentation  
+
+---
+
+## ⚠️ Disclaimer
+
+This repository is intended for:
+- Security research  
+- Detection engineering  
+- Defensive use only  
+
+Do **not** use these techniques in unauthorized environments.
+
+---
+
+## 👤 Author
+
+**Nayan**  
+Cybersecurity & Cloud Security Architect  
+
+---
+
+```
+
+---
+
+If you want next level:
+
+* I can convert this into a **full detection repo (Sigma + KQL + MITRE mapped)**
+* Or make a **SOC-ready runbook with incident response steps**
