@@ -240,13 +240,3 @@ Do **not** use these techniques in unauthorized environments.
 **Nayan**  
 Cybersecurity & Cloud Security Architect  
 
----
-
-```
-
----
-
-If you want next level:
-
-* I can convert this into a **full detection repo (Sigma + KQL + MITRE mapped)**
-* Or make a **SOC-ready runbook with incident response steps**
