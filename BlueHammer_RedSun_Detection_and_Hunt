@@ -1,0 +1,135 @@
+1. Detection KQL – Potential RedSun Defender Zero-Day Exploitation
+// Detect MsMpEng.exe writing executable files into protected system paths
+let DefenderProcess = DeviceProcessEvents
+| where FileName == @"MsMpEng.exe"
+| project DeviceId, ProcessId, InitiatingProcessId, Timestamp;
+let SuspiciousFileWrites = DeviceFileEvents
+| where InitiatingProcessFileName == @"MsMpEng.exe"
+| where FolderPath startswith @"C:\Windows\System32\" or FolderPath startswith @"C:\Windows\SysWOW64\"
+| where FileName endswith ".exe" or FileName endswith ".dll"
+| project DeviceId, Timestamp, FolderPath, FileName, InitiatingProcessId;
+DefenderProcess
+| join kind=inner (
+SuspiciousFileWrites
+) on DeviceId
+| project Timestamp, DeviceId, FileName, FolderPath, ProcessId, InitiatingProcessId
+
+2. Multi-Stage Correlation Query Detection
+// STEP 1: Suspicious Defender Write into System Paths
+let SuspiciousWrite =
+DeviceFileEvents
+| where Timestamp > ago(1d)
+| where InitiatingProcessFileName == @"MsMpEng.exe"
+| where ActionType in ("FileCreated", "FileModified")
+| where FolderPath startswith @"C:\Windows\System32\"
+    or FolderPath startswith @"C:\Windows\SysWOW64\"
+| where FileName endswith ".exe" or FileName endswith ".dll"
+| project WriteTime=Timestamp, DeviceId, DeviceName,FolderPath, FileName, SHA1,WriterCmd=InitiatingProcessCommandLine;
+// STEP 2: Execution of Dropped File
+let Execution =
+DeviceProcessEvents
+| where Timestamp > ago(1d)
+| project ExecTime=Timestamp, DeviceId, DeviceName,FolderPath, FileName, SHA1,ProcessCommandLine,InitiatingProcessFileName,InitiatingProcessCommandLine,AccountName, ProcessIntegrityLevel;
+// STEP 3: Correlate Write → Execution
+let WriteExec =
+SuspiciousWrite
+| join kind=inner Execution on DeviceId, FileName, FolderPath
+| where ExecTime between (WriteTime .. ExecTime);
+// STEP 4: Persistence Indicators (Registry / Services)
+let Persistence =
+DeviceRegistryEvents
+| where Timestamp > ago(1d)
+| where RegistryKey has_any (@"\CurrentVersion\Run", @"\CurrentControlSet\Services\")
+| project RegTime=Timestamp, DeviceId, DeviceName,RegistryKey, RegistryValueData;
+// FINAL OUTPUT
+WriteExec
+| join kind=leftouter Persistence on DeviceId
+| where RegTime between (WriteTime .. ExecTime) or isempty(RegTime)
+| project WriteTime, ExecTime, RegTime,DeviceName,FolderPath, FileName, SHA1,WriterCmd,ProcessCommandLine,InitiatingProcessFileName,AccountName, ProcessIntegrityLevel,RegistryKey, RegistryValueData
+
+3. Detection for suspicious staging of TieringEngineService.exe in writable paths
+//RedSun public walkthrough writes TieringEngineService.exe into a temp working directory before the redirection stage
+DeviceFileEvents
+| where Timestamp > ago(14d)
+| where FileName == @"TieringEngineService.exe"
+| where FolderPath has_any (@"\Users\", @"\Temp\", @"\AppData\", @"\ProgramData\")
+| project Timestamp, DeviceName, FolderPath, FileName, SHA1,
+          InitiatingProcessFileName, InitiatingProcessCommandLine,
+          InitiatingProcessAccountName
+| order by Timestamp desc
+
+4.Detection of shadow-copy credential access patterns
+let suspiciousPaths = dynamic([
+@"\Windows\System32\Config\SAM",@"\Windows\System32\Config\SYSTEM",@"\Windows\System32\Config\SECURITY",@"HarddiskVolumeShadowCopy"]);
+DeviceFileEvents
+| where Timestamp > ago(14d)
+| where FolderPath has_any (suspiciousPaths)
+| where InitiatingProcessAccountName !in~ ("SYSTEM","LOCAL SERVICE","NETWORK SERVICE")
+| project Timestamp, DeviceName, FolderPath, FileName,  InitiatingProcessFileName, InitiatingProcessFolderPath, InitiatingProcessCommandLine, InitiatingProcessAccountName
+| order by Timestamp desc
+
+For DFIR and Forensic Team:
+1. Hunt for system binary replacement by Defender
+let SensitiveNames = dynamic([
+    "sethc.exe","utilman.exe","osk.exe","narrator.exe","magnify.exe",
+    "cmd.exe","powershell.exe","regsvr32.exe","rundll32.exe","dllhost.exe",
+    "services.exe","lsass.exe","winlogon.exe","taskhostw.exe","explorer.exe"
+]);
+DeviceFileEvents
+| where InitiatingProcessFileName == "MsMpEng.exe"
+| where FolderPath startswith @"C:\Windows\System32\"
+    or FolderPath startswith @"C:\Windows\SysWOW64\"
+| where FileName in~ (SensitiveNames)
+| project Timestamp, DeviceName, ActionType, FolderPath, FileName, SHA1,
+          InitiatingProcessCommandLine
+| order by Timestamp desc
+
+2. Hunt for suspicious staging of TieringEngineService.exe in writable paths
+DeviceFileEvents
+| where Timestamp > ago(14d)
+| where FileName =~ "TieringEngineService.exe"
+| where FolderPath has_any (@"\Users\", @"\Temp\", @"\AppData\", @"\ProgramData\")
+| project Timestamp, DeviceName, FolderPath, FileName, SHA1,
+          InitiatingProcessFileName, InitiatingProcessCommandLine,
+          InitiatingProcessAccountName
+| order by Timestamp desc
+
+3.Hunt for non-standard Cloud Files activity
+let known_sync = dynamic(["OneDrive.exe","FileCoAuth.exe","Dropbox.exe","Box.exe","GoogleDriveFS.exe"]);
+DeviceImageLoadEvents
+| where Timestamp > ago(14d)
+| where FileName == @"cldapi.dll"
+| where InitiatingProcessFileName !in~ (known_sync)
+| project Timestamp, DeviceName, InitiatingProcessFileName, InitiatingProcessFolderPath, InitiatingProcessCommandLine, InitiatingProcessAccountName, FileName
+| order by Timestamp desc
+
+DeviceProcessEvents
+| where Timestamp > ago(14d)
+| where ProcessIntegrityLevel == "System"
+| where InitiatingProcessFolderPath has_any (@"\Users\", @"\Temp\", @"\AppData\", @"\ProgramData\")
+   or InitiatingProcessCommandLine has_any (@"\Users\", @"\Temp\", @"\AppData\", @"\ProgramData\")
+| project Timestamp, DeviceName, FileName, FolderPath, ProcessCommandLine,
+          AccountName, ProcessIntegrityLevel,
+          InitiatingProcessFileName, InitiatingProcessFolderPath,
+          InitiatingProcessCommandLine, InitiatingProcessAccountName
+| order by Timestamp desc
+
+4.Hunt for service-creation or SYSTEM execution from a user-writable origin
+DeviceProcessEvents
+| where Timestamp > ago(14d)
+| where ProcessIntegrityLevel == "System"
+| where InitiatingProcessFolderPath has_any (@"\Users\", @"\Temp\", @"\AppData\", @"\ProgramData\")
+   or InitiatingProcessCommandLine has_any (@"\Users\", @"\Temp\", @"\AppData\", @"\ProgramData\")
+| project Timestamp, DeviceName, FileName, FolderPath, ProcessCommandLine,AccountName, ProcessIntegrityLevel,InitiatingProcessFileName, InitiatingProcessFolderPath,InitiatingProcessCommandLine, InitiatingProcessAccountName
+| order by Timestamp desc
+
+5.Hunt for suspicious password-reset admin logon correlation
+let adminLogons =
+    DeviceLogonEvents
+    | where Timestamp > ago(14d)
+    | where AccountName has_any ("Administrator","admin")
+    | project LogonTime=Timestamp, DeviceId, DeviceName, AccountName, LogonType, InitiatingProcessFileName, InitiatingProcessCommandLine;
+DeviceProcessEvents
+| where Timestamp > ago(14d)
+| where ProcessCommandLine has_any ("net user", "Set-LocalUser", "wmic useraccount")
+| project ResetTime=Timestamp, DeviceId, DeviceName, FileName, ProcessCommandLine,InitiatingProcessFileName, InitiatingProcessCommandLine, AccountName
