@@ -23,3 +23,5 @@ DeviceFileEvents
 | where InitiatingProcessFileName !in~ ("MRT.exe", "MsMpEng.exe","svchost.exe", "TrustedInstaller.exe", "msiexec.exe")
 | project Timestamp, DeviceName, InitiatingProcessFileName,InitiatingProcessAccountName, FileName, FolderPath, ActionType
 //Expected signal: High fidelity — few legitimate processes access the MRT directory outside of update operations
+
+More Queries - https://github.com/nayanparakh/Defender-Query-/blob/main/BlueHammer_RedSun_Detection_and_Hunt
