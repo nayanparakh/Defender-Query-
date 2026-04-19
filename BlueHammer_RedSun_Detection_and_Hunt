@@ -68,7 +68,7 @@ DeviceFileEvents
 | project Timestamp, DeviceName, FolderPath, FileName,  InitiatingProcessFileName, InitiatingProcessFolderPath, InitiatingProcessCommandLine, InitiatingProcessAccountName
 | order by Timestamp desc
 
-For DFIR and Forensic Team:
+##For DFIR and Forensic Team:
 1. Hunt for system binary replacement by Defender
 let SensitiveNames = dynamic([
     "sethc.exe","utilman.exe","osk.exe","narrator.exe","magnify.exe",
@@ -101,17 +101,6 @@ DeviceImageLoadEvents
 | where FileName == @"cldapi.dll"
 | where InitiatingProcessFileName !in~ (known_sync)
 | project Timestamp, DeviceName, InitiatingProcessFileName, InitiatingProcessFolderPath, InitiatingProcessCommandLine, InitiatingProcessAccountName, FileName
-| order by Timestamp desc
-
-DeviceProcessEvents
-| where Timestamp > ago(14d)
-| where ProcessIntegrityLevel == "System"
-| where InitiatingProcessFolderPath has_any (@"\Users\", @"\Temp\", @"\AppData\", @"\ProgramData\")
-   or InitiatingProcessCommandLine has_any (@"\Users\", @"\Temp\", @"\AppData\", @"\ProgramData\")
-| project Timestamp, DeviceName, FileName, FolderPath, ProcessCommandLine,
-          AccountName, ProcessIntegrityLevel,
-          InitiatingProcessFileName, InitiatingProcessFolderPath,
-          InitiatingProcessCommandLine, InitiatingProcessAccountName
 | order by Timestamp desc
 
 4.Hunt for service-creation or SYSTEM execution from a user-writable origin
