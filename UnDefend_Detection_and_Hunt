@@ -1,0 +1,25 @@
+Detection 3: UnDefend — Defender Registry Reconnaissance by Non-Defender Processes
+// UnDefend Stage 1: Defender registry path discovery by non-Defender process
+DeviceRegistryEvents
+| where TimeGenerated > ago(30d)
+| where RegistryKey has "Microsoft\\Windows Defender"
+| where RegistryValueName in~ ("ProductAppDataPath", "SignatureLocation")
+| where InitiatingProcessFileName !in~ ("MsMpEng.exe", "MpCmdRun.exe","MsSense.exe", "SenseIR.exe", "svchost.exe", "SecurityHealthService.exe")
+| project Timestamp, DeviceName, InitiatingProcessFileName,InitiatingProcessAccountName, RegistryKey, RegistryValueName, RegistryValueData
+
+Detection 4: UnDefend —Non-Defender process accessing signature/definition files
+// UnDefend Stage 2: Non-Defender process accessing signature/definition files
+DeviceFileEvents
+| where Timestamp > ago(7d)
+| where FileName in~ ("mpavbase.vdm", "mpasbase.vdm", "mpavdlta.vdm", "mpavbase.lkg", "mpasbase.lkg")
+| where InitiatingProcessFileName !in~ ("MsMpEng.exe", "MpCmdRun.exe", "MsSense.exe", "NisSrv.exe", "svchost.exe", "TrustedInstaller.exe")
+| project Timestamp, DeviceName, InitiatingProcessFileName, InitiatingProcessAccountName, FileName, FolderPath, ActionType
+//Expected signal: High fidelity — these files should only be opened by Defender's own components. A non-Defender process holding handles to .vdm/.lkg files is the primary detection surface for UnDefend
+
+// UnDefend Stage 7: MRT directory access by non-system, non-MRT process
+DeviceFileEvents
+| where TimeGenerated > ago(14d)
+| where FolderPath startswith "C:\\Windows\\System32\\MRT"
+| where InitiatingProcessFileName !in~ ("MRT.exe", "MsMpEng.exe","svchost.exe", "TrustedInstaller.exe", "msiexec.exe")
+| project Timestamp, DeviceName, InitiatingProcessFileName,InitiatingProcessAccountName, FileName, FolderPath, ActionType
+//Expected signal: High fidelity — few legitimate processes access the MRT directory outside of update operations
