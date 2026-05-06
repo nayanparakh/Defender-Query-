@@ -1,0 +1,38 @@
+CloudAppEvents
+| where ActionType == "FileUploadedToCloud"
+| evaluate bag_unpack(RawEventData, "Event_")
+| extend 
+    FileName = tostring(parse_path(Event_ObjectId).Filename),
+    FileExtension = tostring(Event_FileExtension),
+    FileType = tostring(Event_FileType),
+    TargetDomain = tostring(Event_TargetDomain),
+    DeviceName = tostring(Event_DeviceName),
+    AccountUpn = tostring(Event_UserId)
+| where isnotempty(TargetDomain)
+| where TargetDomain has_any (
+    "openai.com", "chat.openai.com", "chatgpt.com", "bing.com/chat",
+    "claude.ai", "bard.google.com", "gemini.google.com", "copilot.microsoft.com",
+    "character.ai", "huggingface.co", "cohere.ai", "perplexity.ai", "poe.com",
+    "writesonic.com", "jasper.ai", "copy.ai", "notion.so", "phind.com", "you.com",
+    "runwayml.com", "replicate.com", "deepai.org", "krea.ai", "leonardo.ai",
+    "quillbot.com", "deepl.com", "synthesia.io", "murf.ai", "elevenlabs.io",
+    "fireflies.ai", "otter.ai", "pictory.ai", "descript.com"
+)
+| project 
+    Timestamp,
+    ActionType,
+    AccountDisplayName,
+    AccountUpn,
+    AccountObjectId,
+    IPAddress,
+    ISP,
+    IPCategory,
+    IPTags,
+    Event_Application,
+    FileName,
+    FileExtension,
+    FileType,
+    Event_FileSize,
+    TargetDomain,
+    DeviceName,
+    Event_Workload
